@@ -21,3 +21,9 @@ func (c *AgentController) UserQuerySent(message string) {
 	}
 	c.controllers.Conversation.AgentTextSent(response)
 }
+
+func (c *AgentController) LlmModelChanged(model string) {
+	c.Model.LlmModel = model
+	c.controllers.Agent.Agent.Llm.UpdateModel(model)
+	c.updateView()
+}

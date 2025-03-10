@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -24,8 +25,7 @@ func NewTui(controllers Controllers) *Tui {
 			"go-agent",
 			"Version 0.1.0",
 			"",
-			"Provider: OpenAI",
-			"Model: mini-o1",
+			"Loading...",
 		}, "\n",
 	))
 
@@ -82,5 +82,14 @@ func (t *Tui) Run() error {
 }
 
 func (t *Tui) Update(model *Model) {
+	t.info.SetText(strings.Join(
+		[]string{
+			"go-agent",
+			"Version 0.1.0",
+			"",
+			"Provider: OpenAI",
+			fmt.Sprintf("Model: %s", model.LlmModel),
+		}, "\n",
+	))
 	t.conversation.SetText(strings.Join(model.Conversation, "\n\n"))
 }

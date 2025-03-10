@@ -8,7 +8,8 @@ import (
 )
 
 type OpenaiLlm struct {
-	Client *openai.Client
+	Client   *openai.Client
+	LlmModel string
 }
 
 var _ ILlm = (*OpenaiLlm)(nil)
@@ -18,9 +19,14 @@ type OpenaiCompletionRequest struct {
 	Prompt string `json:"prompt"`
 }
 
+func (a *OpenaiLlm) UpdateModel(model string) error {
+	a.LlmModel = model
+	return nil
+}
+
 func (a *OpenaiLlm) Query(input string) (string, error) {
 	body := openai.ChatCompletionNewParams{
-		Model: openai.F(openai.ChatModelGPT4o),
+		Model: openai.F(a.LlmModel),
 		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(input),
 		}),

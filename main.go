@@ -17,10 +17,13 @@ func (a *App) Run() error {
 }
 
 func main() {
-	model := &Model{}
+	model := &Model{
+		LlmModel: openai.ChatModelGPT4oMini,
+	}
 
 	llm := &OpenaiLlm{
-		Client: openai.NewClient(),
+		Client:   openai.NewClient(),
+		LlmModel: model.LlmModel,
 	}
 	agent := &Agent{
 		Llm: llm,
@@ -34,6 +37,7 @@ func main() {
 	controllers.WithUpdateFunc(func() {
 		tui.Update(model)
 	})
+	tui.Update(model)
 
 	app := &App{
 		Controllers: controllers,
