@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/openai/openai-go"
+)
 
 type App struct {
 	Controllers *Controllers
@@ -15,11 +19,19 @@ func (a *App) Run() error {
 func main() {
 	model := &Model{}
 
-	controllers := NewControllers(model)
+	llm := &OpenaiLlm{
+		Client: openai.NewClient(),
+	}
+	agent := &Agent{
+		Llm: llm,
+	}
+	controllers := NewControllers(ControllersParams{
+		Model: model,
+		Agent: agent,
+	})
 
 	tui := NewTui(*controllers)
 	controllers.WithUpdateFunc(func() {
-		fmt.Printf("UPDATE")
 		tui.Update(model)
 	})
 

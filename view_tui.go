@@ -47,6 +47,7 @@ func NewTui(controllers Controllers) *Tui {
 		if event.Key() == tcell.KeyCtrlSpace {
 			userInput := userInputTextArea.GetText()
 			controllers.Conversation.UserInputSent(userInput)
+			controllers.Agent.UserQuerySent(userInput)
 			userInputTextArea.SetText("", true)
 			return nil
 		}

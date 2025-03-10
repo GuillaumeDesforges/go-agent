@@ -1,11 +1,13 @@
 package main
 
+import "github.com/rotisserie/eris"
+
 type IAgent interface {
-	query(input string) error
+	query(input string) (string, error)
 }
 
 type Agent struct {
-	tools []Tool
+	Llm ILlm
 }
 
 var _ IAgent = (*Agent)(nil)
@@ -21,10 +23,10 @@ type Parameter struct {
 	Required   []string
 }
 
-func (a *Agent) query(input string) error {
-	for {
-		// TODO: read input, send request, process them, repeat until done
-		break
+func (a *Agent) query(input string) (string, error) {
+	output, err := a.Llm.Query(input)
+	if err != nil {
+		return "", eris.Wrap(err, "a.Llm.Query")
 	}
-	return nil
+	return output, nil
 }
