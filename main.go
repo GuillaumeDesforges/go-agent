@@ -7,7 +7,7 @@ import (
 )
 
 type App struct {
-	Controllers *Controllers
+	Controllers *Controller
 	Tui         *Tui
 	Model       *Model
 }
@@ -22,25 +22,25 @@ func main() {
 	}
 
 	llm := &OpenaiLlm{
-		Client:   openai.NewClient(),
-		LlmModel: model.LlmModel,
+		Client: openai.NewClient(),
+		Model:  model.LlmModel,
 	}
 	agent := &Agent{
 		Llm: llm,
 	}
-	controllers := NewControllers(ControllersParams{
+	controller := &Controller{
 		Model: model,
 		Agent: agent,
-	})
+	}
 
-	tui := NewTui(*controllers)
-	controllers.WithUpdateFunc(func() {
+	tui := NewTui(controller)
+	controller.WithUpdateView(func() {
 		tui.Update(model)
 	})
 	tui.Update(model)
 
 	app := &App{
-		Controllers: controllers,
+		Controllers: controller,
 		Tui:         tui,
 		Model:       model,
 	}

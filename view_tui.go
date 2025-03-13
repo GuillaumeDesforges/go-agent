@@ -15,7 +15,7 @@ type Tui struct {
 	userInputTextArea *tview.TextArea
 }
 
-func NewTui(controllers Controllers) *Tui {
+func NewTui(controller *Controller) *Tui {
 	app := tview.NewApplication()
 
 	info := tview.NewTextView()
@@ -46,9 +46,10 @@ func NewTui(controllers Controllers) *Tui {
 	userInputTextArea.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlSpace {
 			userInput := userInputTextArea.GetText()
-			controllers.Conversation.UserInputSent(userInput)
-			controllers.Agent.UserQuerySent(userInput)
 			userInputTextArea.SetText("", true)
+			go func() {
+				controller.UserQuerySent(userInput)
+			}()
 			return nil
 		}
 		return event
@@ -92,4 +93,5 @@ func (t *Tui) Update(model *Model) {
 		}, "\n",
 	))
 	t.conversation.SetText(strings.Join(model.Conversation, "\n\n"))
+	t.userInputTextArea.SetDisabled(model.UserInputDisabled)
 }

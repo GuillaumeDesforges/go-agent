@@ -3,7 +3,7 @@ package main
 import "github.com/rotisserie/eris"
 
 type IAgent interface {
-	query(input string) (string, error)
+	Query(input string, responses chan string) error
 }
 
 type Agent struct {
@@ -23,10 +23,11 @@ type Parameter struct {
 	Required   []string
 }
 
-func (a *Agent) query(input string) (string, error) {
+func (a *Agent) Query(input string, responses chan string) error {
 	output, err := a.Llm.Query(input)
 	if err != nil {
-		return "", eris.Wrap(err, "a.Llm.Query")
+		return eris.Wrap(err, "a.Llm.Query")
 	}
-	return output, nil
+	responses <- output.Content
+	return nil
 }

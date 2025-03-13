@@ -5,28 +5,24 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/rotisserie/eris"
+	"github.com/samber/lo"
 )
 
 type OpenaiLlm struct {
-	Client   *openai.Client
-	LlmModel string
+	Client *openai.Client
+	Model  string
 }
 
 var _ ILlm = (*OpenaiLlm)(nil)
 
-type OpenaiCompletionRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-}
-
 func (a *OpenaiLlm) UpdateModel(model string) error {
-	a.LlmModel = model
+	a.Model = model
 	return nil
 }
 
-func (a *OpenaiLlm) Query(input string) (string, error) {
+func (a *OpenaiLlm) Query(input string) (*LlmQueryResult, error) {
 	body := openai.ChatCompletionNewParams{
-		Model: openai.F(a.LlmModel),
+		Model: openai.F(a.Model),
 		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(input),
 		}),
@@ -36,10 +32,21 @@ func (a *OpenaiLlm) Query(input string) (string, error) {
 		body,
 	)
 	if err != nil {
-		return "", eris.Wrap(err, "a.Client.Chat.Completions.New")
+		return nil, eris.Wrap(err, "a.Client.Chat.Completions.New")
 	}
 	if len(chatCompletion.Choices) == 0 {
-		return "", eris.New("chatCompletion.Choices is empty")
+		return nil, eris.New("chatCompletion.Choices is empty")
 	}
-	return chatCompletion.Choices[0].Message.Content, nil
+	message := chatCompletion.Choices[0].Message
+	return &LlmQueryResult{
+		Content: message.Content,
+		ToolCalls: lo.Map(message.ToolCalls, func(tc openai.ChatCompletionMessageToolCall, i int) ToolCall {
+			return ToolCall{
+				ID:        tc.ID,
+				Type:      string(tc.Type),
+				Name:      tc.Function.Name,
+				Arguments: tc.Function.Arguments,
+			}
+		}),
+	}, nil
 }
