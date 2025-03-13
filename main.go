@@ -26,7 +26,7 @@ func main() {
 		Model:  model.LlmModel,
 	}
 	agent := &Agent{
-		Llm: llm,
+		ILlm: llm,
 	}
 	controller := &Controller{
 		Model: model,

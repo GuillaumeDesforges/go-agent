@@ -7,12 +7,21 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type IController interface {
+	LlmModelChanged(model string)
+	UserQuerySent(message string)
+	AgentTextSent(message string)
+	AgentErrorSent(err error)
+}
+
 type Controller struct {
 	Model *Model
-	Agent *Agent
+	Agent IAgent
 
 	updateView func()
 }
+
+var _ IController = (*Controller)(nil)
 
 func (c *Controller) WithUpdateView(updateView func()) *Controller {
 	c.updateView = updateView
@@ -21,7 +30,7 @@ func (c *Controller) WithUpdateView(updateView func()) *Controller {
 
 func (c *Controller) LlmModelChanged(model string) {
 	c.Model.LlmModel = model
-	c.Agent.Llm.UpdateModel(model)
+	c.Agent.UpdateModel(model)
 	c.updateView()
 }
 

@@ -3,11 +3,12 @@ package main
 import "github.com/rotisserie/eris"
 
 type IAgent interface {
+	UpdateModel(model string) error
 	Query(input string, responses chan string) error
 }
 
 type Agent struct {
-	Llm ILlm
+	ILlm
 }
 
 var _ IAgent = (*Agent)(nil)
@@ -24,7 +25,7 @@ type Parameter struct {
 }
 
 func (a *Agent) Query(input string, responses chan string) error {
-	output, err := a.Llm.Query(input)
+	output, err := a.ILlm.Query(input)
 	if err != nil {
 		return eris.Wrap(err, "a.Llm.Query")
 	}

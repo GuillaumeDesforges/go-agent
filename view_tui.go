@@ -15,7 +15,7 @@ type Tui struct {
 	userInputTextArea *tview.TextArea
 }
 
-func NewTui(controller *Controller) *Tui {
+func NewTui(controller IController) *Tui {
 	app := tview.NewApplication()
 
 	info := tview.NewTextView()
