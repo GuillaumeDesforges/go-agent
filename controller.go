@@ -11,7 +11,8 @@ type IController interface {
 	LlmModelChanged(model string)
 	UserQuerySent(message string)
 	AgentTextSent(message string)
-	AgentErrorSent(err error)
+	ToolTextSent(name string, message string)
+	ErrorSent(err error)
 }
 
 type Controller struct {
@@ -59,19 +60,25 @@ func (c *Controller) UserQuerySent(message string) {
 	})
 	err := errGroup.Wait()
 	if err != nil {
-		c.AgentErrorSent(err)
+		c.ErrorSent(err)
 		return
 	}
 }
 
 func (c *Controller) AgentTextSent(message string) {
-	text := fmt.Sprintf("Agent: %s", message)
+	text := fmt.Sprintf("[agent]: %s", message)
 	c.Model.Conversation = append(c.Model.Conversation, text)
 	c.updateView()
 }
 
-func (c *Controller) AgentErrorSent(err error) {
+func (c *Controller) ErrorSent(err error) {
 	text := fmt.Sprintf("ERROR: %s", err.Error())
+	c.Model.Conversation = append(c.Model.Conversation, text)
+	c.updateView()
+}
+
+func (c *Controller) ToolTextSent(name string, message string) {
+	text := fmt.Sprintf("[tool:%s]: %s", name, message)
 	c.Model.Conversation = append(c.Model.Conversation, text)
 	c.updateView()
 }

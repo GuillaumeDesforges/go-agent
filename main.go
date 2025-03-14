@@ -28,6 +28,7 @@ func main() {
 	agent := &Agent{
 		ILlm: llm,
 	}
+
 	controller := &Controller{
 		Model: model,
 		Agent: agent,
@@ -38,6 +39,17 @@ func main() {
 		tui.Update(model)
 	})
 	tui.Update(model)
+
+	helloWorldTool := Tool{
+		Name:        "hello-world",
+		Description: "Prints a hello world message.",
+		Parameters:  []Parameter{},
+		f: func(arguments map[string]any) (string, error) {
+			controller.ToolTextSent("hello-world", "Hello, world!")
+			return "success", nil
+		},
+	}
+	agent.Tools = append(agent.Tools, helloWorldTool)
 
 	app := &App{
 		Controllers: controller,

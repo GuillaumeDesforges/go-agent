@@ -14,5 +14,6 @@ type ToolCall struct {
 
 type ILlm interface {
 	UpdateModel(model string) error
+	WithTools(tools []Tool) ILlm
 	Query(input string) (*LlmQueryResult, error)
 }
