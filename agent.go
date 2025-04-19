@@ -11,9 +11,14 @@ import (
 	"github.com/samber/lo"
 )
 
+type Observer interface {
+	NotifyResponse(*responses.Response)
+}
+
 type ReAct struct {
-	client openai.Client
-	tools  []Tool
+	client    openai.Client
+	tools     []Tool
+	observers []Observer
 }
 
 func NewReAct() *ReAct {
@@ -23,8 +28,12 @@ func NewReAct() *ReAct {
 	}
 }
 
-func (a *ReAct) AddTool(tool Tool) {
-	a.tools = append(a.tools, tool)
+func (a *ReAct) AddTool(t Tool) {
+	a.tools = append(a.tools, t)
+}
+
+func (a *ReAct) RegisterObserver(o Observer) {
+	a.observers = append(a.observers, o)
 }
 
 func (a *ReAct) Tell(ctx context.Context, message string) error {
@@ -95,12 +104,7 @@ func (a *ReAct) Tell(ctx context.Context, message string) error {
 }
 
 func (a *ReAct) onResponse(response *responses.Response) {
-	slog.Debug("onResponse", "response.Reasoning.GenerateSummary", response.Reasoning.GenerateSummary)
-	for _, output := range response.Output {
-		for _, content := range output.Content {
-			if content.Type == "output_text" {
-				fmt.Printf("%s\n", content.Text)
-			}
-		}
+	for _, o := range a.observers {
+		o.NotifyResponse(response)
 	}
 }

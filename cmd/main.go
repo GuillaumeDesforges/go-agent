@@ -12,10 +12,12 @@ import (
 )
 
 func main() {
-	h := slogjson.NewHandler(os.Stderr, &slogjson.HandlerOptions{AddSource: false, Level: slog.LevelDebug})
+	level := slog.LevelError
+	h := slogjson.NewHandler(os.Stderr, &slogjson.HandlerOptions{AddSource: false, Level: level})
 	slog.SetDefault(slog.New(h))
 
 	a := agent.NewReAct()
+
 	clockTool := agent.Tool{
 		Name:        "clock",
 		Description: "Get current time",
@@ -26,6 +28,9 @@ func main() {
 		},
 	}
 	a.AddTool(clockTool)
+
+	observer := agent.NewConsoleObserver()
+	a.RegisterObserver(observer)
 
 	ctx := context.Background()
 	err := a.Tell(ctx, "What time is it?")
