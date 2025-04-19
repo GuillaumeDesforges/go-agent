@@ -1,60 +1,106 @@
-package main
+package agent
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 
-	"github.com/rotisserie/eris"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/responses"
 	"github.com/samber/lo"
 )
 
-type IAgent interface {
-	UpdateModel(model string) error
-	Query(input string, responses chan string) error
+type ReAct struct {
+	client openai.Client
+	tools  []Tool
 }
 
-type Agent struct {
-	ILlm
-	Tools []Tool
+func NewReAct() *ReAct {
+	client := openai.NewClient()
+	return &ReAct{
+		client: client,
+	}
 }
 
-type Tool struct {
-	Name        string
-	Description string
-	Parameters  []Parameter
-	f           func(arguments map[string]any) (string, error)
+func (a *ReAct) AddTool(tool Tool) {
+	a.tools = append(a.tools, tool)
 }
 
-type Parameter struct {
-	Name        string
-	Type        string
-	Description string
-	Required    bool
-}
+func (a *ReAct) Tell(ctx context.Context, message string) error {
+	model := "o3-mini"
+	tools := lo.Map(a.tools, func(tool Tool, _ int) responses.ToolUnionParam {
+		return tool.ToParam()
+	})
 
-var _ IAgent = (*Agent)(nil)
-
-func (a *Agent) Query(input string, responses chan string) error {
-	output, err := a.ILlm.WithTools(a.Tools).Query(input)
+	var params responses.ResponseNewParams
+	params = responses.ResponseNewParams{
+		Model: model,
+		Input: responses.ResponseNewParamsInputUnion{
+			OfString: openai.String(message),
+		},
+		Tools: tools,
+	}
+	var response *responses.Response
+	var err error
+	response, err = a.client.Responses.New(ctx, params)
 	if err != nil {
-		return eris.Wrap(err, "a.Llm.Query")
+		return fmt.Errorf("a.client.Responses.New: %w", err)
 	}
-	responses <- output.Content
-	for _, toolCall := range output.ToolCalls {
-		tool, found := lo.Find(a.Tools, func(item Tool) bool {
-			return item.Name == toolCall.Name
-		})
-		if !found {
-			return eris.Errorf("tool %s not found", toolCall.Name)
+	a.onResponse(response)
+
+	// iterate on tools
+	params = responses.ResponseNewParams{
+		PreviousResponseID: openai.String(response.ID),
+		Model:              model,
+		Tools:              tools,
+	}
+	for _, output := range response.Output {
+		if output.Type != "function_call" {
+			continue
 		}
-		arguments := make(map[string]any)
-		err := json.Unmarshal([]byte(toolCall.Arguments), &arguments)
-		if err != nil {
-			return eris.Wrap(err, "json.Unmarshal")
-		}
-		_, err = tool.f(arguments)
-		if err != nil {
-			return eris.Wrap(err, "tool.f")
+		call := output.AsFunctionCall()
+		slog.Debug("Tell", "call", call)
+		for _, tool := range a.tools {
+			if tool.Name == call.Name {
+				observation, err := tool.Handler()
+				if err != nil {
+					return fmt.Errorf("tool.Handler: %w", err)
+				}
+				observationJson, err := json.Marshal(observation)
+				if err != nil {
+					return fmt.Errorf("json.Marshal: %w", err)
+				}
+				params.Input = responses.ResponseNewParamsInputUnion{
+					OfInputItemList: []responses.ResponseInputItemUnionParam{
+						{
+							OfFunctionCallOutput: &responses.ResponseInputItemFunctionCallOutputParam{
+								CallID: call.CallID,
+								Output: string(observationJson),
+							},
+						},
+					},
+				}
+			}
 		}
 	}
+
+	response, err = a.client.Responses.New(ctx, params)
+	if err != nil {
+		return fmt.Errorf("a.client.Responses.New: %w", err)
+	}
+	a.onResponse(response)
+
 	return nil
+}
+
+func (a *ReAct) onResponse(response *responses.Response) {
+	slog.Debug("onResponse", "response.Reasoning.GenerateSummary", response.Reasoning.GenerateSummary)
+	for _, output := range response.Output {
+		for _, content := range output.Content {
+			if content.Type == "output_text" {
+				fmt.Printf("%s\n", content.Text)
+			}
+		}
+	}
 }
