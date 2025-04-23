@@ -2,34 +2,29 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/responses"
-	"github.com/samber/lo"
 )
 
 type Observer interface {
-	NotifyResponse(*responses.Response)
+	NotifyReply(Reply)
 }
 
 type ReAct struct {
-	client    openai.Client
-	tools     []Tool
-	observers []Observer
+	tools        []Tool
+	observers    []Observer
+	conversation Conversation
 }
 
-func NewReAct() *ReAct {
-	client := openai.NewClient()
+func NewReAct(conversation Conversation) *ReAct {
 	return &ReAct{
-		client: client,
+		conversation: conversation,
 	}
 }
 
 func (a *ReAct) AddTool(t Tool) {
 	a.tools = append(a.tools, t)
+	a.conversation.AddTool(t)
 }
 
 func (a *ReAct) RegisterObserver(o Observer) {
@@ -37,74 +32,61 @@ func (a *ReAct) RegisterObserver(o Observer) {
 }
 
 func (a *ReAct) Tell(ctx context.Context, message string) error {
-	model := "o3-mini"
-	tools := lo.Map(a.tools, func(tool Tool, _ int) responses.ToolUnionParam {
-		return tool.ToParam()
-	})
+	// WARNING: may get stuck if the conversation fills up the buffers and we don't consume in a goroutine
+	replies := make(chan Reply, 10)
+	toolCalls := make(chan []ToolCall, 10)
 
-	var params responses.ResponseNewParams
-	params = responses.ResponseNewParams{
-		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String(message),
-		},
-		Tools: tools,
-	}
-	var response *responses.Response
-	var err error
-	response, err = a.client.Responses.New(ctx, params)
+	err := a.conversation.SendMessage(
+		ctx,
+		message,
+		replies,
+		toolCalls,
+	)
+	close(replies)
+	close(toolCalls)
 	if err != nil {
-		return fmt.Errorf("a.client.Responses.New: %w", err)
+		return fmt.Errorf("a.conversation.SendMessage: %w", err)
 	}
-	a.onResponse(response)
 
-	// iterate on tools
-	params = responses.ResponseNewParams{
-		PreviousResponseID: openai.String(response.ID),
-		Model:              model,
-		Tools:              tools,
-	}
-	for _, output := range response.Output {
-		if output.Type != "function_call" {
-			continue
+	for {
+		for reply := range replies {
+			slog.Debug("a.Tell", "reply", reply)
+			for _, o := range a.observers {
+				o.NotifyReply(reply)
+			}
 		}
-		call := output.AsFunctionCall()
-		slog.Debug("Tell", "call", call)
-		for _, tool := range a.tools {
-			if tool.Name == call.Name {
-				observation, err := tool.Handler()
-				if err != nil {
-					return fmt.Errorf("tool.Handler: %w", err)
-				}
-				observationJson, err := json.Marshal(observation)
-				if err != nil {
-					return fmt.Errorf("json.Marshal: %w", err)
-				}
-				params.Input = responses.ResponseNewParamsInputUnion{
-					OfInputItemList: []responses.ResponseInputItemUnionParam{
-						{
-							OfFunctionCallOutput: &responses.ResponseInputItemFunctionCallOutputParam{
-								CallID: call.CallID,
-								Output: string(observationJson),
-							},
-						},
-					},
+		var toolCallResults []ToolCallResult
+		for toolCallBatch := range toolCalls {
+			for _, toolCall := range toolCallBatch {
+				slog.Debug("a.Tell", "toolCall", toolCall)
+				for _, t := range a.tools {
+					toolName := t.Name
+					if toolName == toolCall.ToolName {
+						result, err := t.Handler(toolCall.Arguments)
+						toolCallResults = append(toolCallResults, ToolCallResult{
+							ToolName: toolName,
+							Result:   result,
+							Error:    err,
+						})
+					}
 				}
 			}
 		}
-	}
 
-	response, err = a.client.Responses.New(ctx, params)
-	if err != nil {
-		return fmt.Errorf("a.client.Responses.New: %w", err)
+		if len(toolCallResults) == 0 {
+			// no more tool call results to react on http.ResponseWriter, r *http.Request
+			break
+		}
+
+		replies = make(chan Reply)
+		toolCalls = make(chan []ToolCall)
+		err = a.conversation.SendToolResults(ctx, toolCallResults, replies, toolCalls)
+		close(replies)
+		close(toolCalls)
+		if err != nil {
+			return fmt.Errorf("a.conversation.SendToolResults: %w", err)
+		}
 	}
-	a.onResponse(response)
 
 	return nil
-}
-
-func (a *ReAct) onResponse(response *responses.Response) {
-	for _, o := range a.observers {
-		o.NotifyResponse(response)
-	}
 }

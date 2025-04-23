@@ -2,38 +2,33 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/GuillaumeDesforges/go-agent"
 	slogjson "github.com/veqryn/slog-json"
 )
 
 func main() {
-	level := slog.LevelError
+	level := slog.LevelDebug
 	h := slogjson.NewHandler(os.Stderr, &slogjson.HandlerOptions{AddSource: false, Level: level})
 	slog.SetDefault(slog.New(h))
 
-	a := agent.NewReAct()
+	conversation := agent.NewOpenaiLlmConversation()
+	conversation.SetModel("o3-mini")
+	a := agent.NewReAct(conversation)
 
-	clockTool := agent.Tool{
-		Name:        "clock",
-		Description: "Get current time",
-		Parameters:  nil,
-		Handler: func(args ...any) (any, error) {
-			jb, err := json.Marshal(time.Now().Format(time.Kitchen))
-			return string(jb), err
-		},
-	}
-	a.AddTool(clockTool)
+	calendarTools := NewCalendarTools()
+	calendarTools.RegisterTools(a)
+
+	clockTools := NewClockTools()
+	clockTools.RegisterTools(a)
 
 	observer := agent.NewConsoleObserver()
 	a.RegisterObserver(observer)
 
 	ctx := context.Background()
-	err := a.Tell(ctx, "What time is it?")
+	err := a.Tell(ctx, "What are the events in my calendar today?")
 	if err != nil {
 		panic(err)
 	}
