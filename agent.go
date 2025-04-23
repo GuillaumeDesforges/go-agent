@@ -6,6 +6,11 @@ import (
 	"log/slog"
 )
 
+const (
+	CHAN_REPLIES_BUFF_SIZE   = 32
+	CHAN_TOOLCALLS_BUFF_SIZE = 32
+)
+
 type Observer interface {
 	NotifyReply(Reply)
 }
@@ -33,8 +38,8 @@ func (a *ReAct) RegisterObserver(o Observer) {
 
 func (a *ReAct) Tell(ctx context.Context, message string) error {
 	// WARNING: may get stuck if the conversation fills up the buffers and we don't consume in a goroutine
-	replies := make(chan Reply, 10)
-	toolCalls := make(chan []ToolCall, 10)
+	replies := make(chan Reply, CHAN_REPLIES_BUFF_SIZE)
+	toolCalls := make(chan []ToolCall, CHAN_TOOLCALLS_BUFF_SIZE)
 
 	err := a.conversation.SendMessage(
 		ctx,
@@ -78,8 +83,8 @@ func (a *ReAct) Tell(ctx context.Context, message string) error {
 			break
 		}
 
-		replies = make(chan Reply)
-		toolCalls = make(chan []ToolCall)
+		replies := make(chan Reply, CHAN_REPLIES_BUFF_SIZE)
+		toolCalls := make(chan []ToolCall, CHAN_TOOLCALLS_BUFF_SIZE)
 		err = a.conversation.SendToolResults(ctx, toolCallResults, replies, toolCalls)
 		close(replies)
 		close(toolCalls)
