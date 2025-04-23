@@ -79,7 +79,8 @@ func (a *ReAct) Tell(ctx context.Context, message string) error {
 		}
 
 		if len(toolCallResults) == 0 {
-			// no more tool call results to react on http.ResponseWriter, r *http.Request
+			// no more tool call results to react on
+			// NOTE: probably a good time to ask what was the objective and if it fullfilled it?
 			break
 		}
 
